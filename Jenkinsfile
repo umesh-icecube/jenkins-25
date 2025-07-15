@@ -1,37 +1,43 @@
 pipeline {
     agent any
-
     environment {
-        GIT_CREDENTIALS_ID = 'github-pat'  // Jenkins credentials ID (Username+Password or SSH)
-        REPO_URL = 'https://github.com/umesh-icecube/jenkins-25.git'
+        CRED_ID = 'github-pat'                    // Username+Password (PAT) credential
+        REPO    = 'https://github.com/umesh-icecube/jenkins-25.git'
     }
-
     stages {
-        stage('Clone Repo') {
+        stage('Checkout development') {
             steps {
-                git credentialsId: "${env.GIT_CREDENTIALS_ID}", url: "${env.REPO_URL}", branch: 'development'
+                git url: REPO, credentialsId: CRED_ID, branch: 'development'
             }
         }
-
-        stage('Push to Staging') {
+        stage('Merge & push to staging') {
             steps {
-                script {
-                    sh '''
-                        git config user.email "umesh@icecubedigital.com"
-                        git config user.name "umesh-icecube"
-                        
-                        # Fetch and checkout staging
-                        git fetch origin staging
-                        git checkout staging
+                withCredentials([usernamePassword(credentialsId: CRED_ID,
+                                                 usernameVariable: 'GIT_USER',
+                                                 passwordVariable: 'GIT_TOKEN')]) {
+                    sh """
+                       set -e
+                       git config user.email "jenkins@ci"
+                       git config user.name  "Jenkins CI"
 
-                        # Merge development into staging
-                        git merge origin/development -m "CI: Merge development into staging"
+                       # Make sure staging is present
+                       git fetch origin staging:refs/remotes/origin/staging || true
+                       git checkout -B staging origin/staging || git checkout -b staging
 
-                        # Push staging branch
-                        git push origin staging
-                    '''
+                       git merge --no-ff --log origin/development -m "CI: merge development into staging"
+
+                       # Push using PAT
+                       git push https://${GIT_USER}:${GIT_TOKEN}@github.com/your-user/your-repo.git staging
+                    """
                 }
             }
+        }
+    }
+    post {
+        failure {
+            mail to: 'umesh@icecubedigital.com',
+                 subject: "Merge to staging failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: "Check console output: ${env.RUN_DISPLAY_URL}"
         }
     }
 }
