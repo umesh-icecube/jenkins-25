@@ -17,8 +17,8 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        git config user.email "jenkins@ci.com"
-                        git config user.name "Jenkins CI"
+                        git config user.email "umesh@icecubedigital.com"
+                        git config user.name "umesh-icecube"
                         
                         # Fetch and checkout staging
                         git fetch origin staging
